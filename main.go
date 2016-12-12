@@ -144,6 +144,7 @@ func main() {
 	}
 
 	// YARA
+	result.YARA = make([]string, 0)
 	xpath = xmlpath.MustCompile(`//section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[10]/td`)
 	if yarasExtracted, ok := xpath.String(xmlRoot); ok {
 		asArray := strings.Split(yarasExtracted, "\n")
@@ -274,6 +275,21 @@ func main() {
 
 		if len(droppedFile.CRC32) == 0 {
 			break
+		}
+
+		droppedFile.YARA = make([]string, 0)
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`//*[@id="dropped"]/div[%d]/div/table/tbody/tr[9]/td`, i))
+		if yarasExtracted, ok := xpath.String(xmlRoot); ok {
+			asArray := strings.Split(yarasExtracted, "\n")
+
+			for _, asString := range asArray {
+				asString = strings.Trim(asString, " \t")
+				if len(asString) == 0 || asString == "None matched" {
+					continue
+				}
+
+				droppedFile.YARA = append(droppedFile.YARA, asString)
+			}
 		}
 
 		result.DroppedFiles = append(result.DroppedFiles, droppedFile)
