@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 
 	"log"
 
@@ -156,15 +155,12 @@ func main() {
 	}
 
 	// Signatures
-	xpath = xmlpath.MustCompile(`//section[@id='signatures']`)
-	if signaturesExtracted, ok := xpath.String(xmlRoot); ok {
-		asArray := strings.Split(signaturesExtracted, "\n")
-		dozenSpacesAtStart := regexp.MustCompile(`^ {12}[^ ]`)
-
-		for _, asString := range asArray {
-			if dozenSpacesAtStart.MatchString(asString) {
-				result.Signatures = append(result.Signatures, strings.Trim(asString, " "))
-			}
+	for i := 1; ; i++ {
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='signatures']/a[%d]`, i))
+		if signature, ok := xpath.String(xmlRoot); ok && len(signature) > 0 {
+			result.Signatures = append(result.Signatures, strings.Trim(signature, " \n\t"))
+		} else {
+			break
 		}
 	}
 
