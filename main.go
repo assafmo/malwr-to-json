@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"regexp"
 
@@ -47,6 +48,7 @@ type dropped struct {
 
 func main() {
 	reportID := flag.String("id", "", "malwr.com report id")
+	includeHTML := flag.String("html", "false", "include html? (default=false)")
 	flag.Parse()
 
 	url := fmt.Sprintf("https://malwr.com/analysis/%s/", *reportID)
@@ -71,18 +73,26 @@ func main() {
 	var result report
 	result.ID = *reportID
 	result.URL = url
-	// if bytesHTML, err := ioutil.ReadAll(response.Body); err == nil {
-	// 	result.HTML = string(bytesHTML)
-	// }
 
-	xmlRoot, err := xmlpath.ParseHTML(response.Body)
-	if err != nil {
-		log.Fatal(err)
+	var xmlRoot *xmlpath.Node
+	if *includeHTML == "true" {
+		if bytesHTML, err := ioutil.ReadAll(response.Body); err == nil {
+			result.HTML = string(bytesHTML)
+			xmlRoot, err = xmlpath.ParseHTML(strings.NewReader(result.HTML))
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	} else {
+		xmlRoot, err = xmlpath.ParseHTML(response.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// Analysis
 	for i := 1; i <= 9; i++ {
-		xpath := xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr/td[%d]`, i))
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='information']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr/td[%d]`, i))
 		if value, ok := xpath.String(xmlRoot); ok {
 			switch i {
 			case 1:
@@ -98,14 +108,14 @@ func main() {
 	}
 
 	// Error
-	xpath := xmlpath.MustCompile(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/ul/li[@class='text-error']`)
+	xpath := xmlpath.MustCompile(`//section[@id='information']/ul/li[@class='text-error']`)
 	if errorText, ok := xpath.String(xmlRoot); ok {
 		result.Error = errorText
 	}
 
 	// File Details
 	for i := 1; i <= 9; i++ {
-		xpath := xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[%d]/td`, i))
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[%d]/td`, i))
 		if value, ok := xpath.String(xmlRoot); ok {
 			switch i {
 			case 1:
@@ -131,7 +141,7 @@ func main() {
 	}
 
 	// YARA
-	xpath = xmlpath.MustCompile(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[10]/td`)
+	xpath = xmlpath.MustCompile(`//section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[10]/td`)
 	if yarasExtracted, ok := xpath.String(xmlRoot); ok {
 		asArray := strings.Split(yarasExtracted, "\n")
 
@@ -187,7 +197,7 @@ func main() {
 
 	// Files, Registry Keys, Mutexes
 	for _, listType := range []string{"summary_keys", "summary_files", "summary_mutexes"} {
-		xpath = xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='summary']/div[@class='tabbable tabs']/div[@class='tab-content']/div[@id='%s']/div[@class='well mono']`, listType))
+		xpath = xmlpath.MustCompile(fmt.Sprintf(`//section[@id='summary']/div[@class='tabbable tabs']/div[@class='tab-content']/div[@id='%s']/div[@class='well mono']`, listType))
 		if listExtracted, ok := xpath.String(xmlRoot); ok {
 			asArray := strings.Split(listExtracted, "\n")
 
