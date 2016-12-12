@@ -46,7 +46,7 @@ type antivirus struct {
 
 type dropped struct {
 	FileName, FileSize, FileType, MD5, SHA1, SHA256, CRC32, SSDEEP string
-	YARA                                                           string
+	YARA                                                           []string
 }
 
 func main() {
@@ -243,6 +243,41 @@ func main() {
 		result.VirusTotal.Detections = append(result.VirusTotal.Detections, av)
 	}
 	result.VirusTotal.Score = fmt.Sprintf("%d/%d", vtDetected, vtTotal)
+
+	// Dropped Files
+	for i := 1; ; i++ {
+		droppedFile := dropped{}
+		for j := 1; j <= 8; j++ {
+			xpath := xmlpath.MustCompile(fmt.Sprintf(`//*[@id="dropped"]/div[%d]/div/table/tbody/tr[%d]/td`, i, j))
+			if value, ok := xpath.String(xmlRoot); ok {
+				value = strings.Trim(value, " \t\n")
+				switch j {
+				case 1:
+					droppedFile.FileName = value
+				case 2:
+					droppedFile.FileSize = value
+				case 3:
+					droppedFile.FileType = value
+				case 4:
+					droppedFile.MD5 = value
+				case 5:
+					droppedFile.SHA1 = value
+				case 6:
+					droppedFile.SHA256 = value
+				case 7:
+					droppedFile.CRC32 = value
+				case 8:
+					droppedFile.SSDEEP = value
+				}
+			}
+		}
+
+		if len(droppedFile.CRC32) == 0 {
+			break
+		}
+
+		result.DroppedFiles = append(result.DroppedFiles, droppedFile)
+	}
 
 	asJSON, err := json.MarshalIndent(result, "", "\t")
 	if err != nil {
