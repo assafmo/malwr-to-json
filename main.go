@@ -80,11 +80,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var xpath *xmlpath.Path
-
 	// Analysis
 	for i := 1; i <= 9; i++ {
-		xpath = xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr/td[%d]`, i))
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr/td[%d]`, i))
 		if value, ok := xpath.String(xmlRoot); ok {
 			switch i {
 			case 1:
@@ -100,14 +98,14 @@ func main() {
 	}
 
 	// Error
-	xpath = xmlpath.MustCompile(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/ul/li[@class='text-error']`)
+	xpath := xmlpath.MustCompile(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='information']/ul/li[@class='text-error']`)
 	if errorText, ok := xpath.String(xmlRoot); ok {
 		result.Error = errorText
 	}
 
 	// File Details
 	for i := 1; i <= 9; i++ {
-		xpath = xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[%d]/td`, i))
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='file']/div[@class='box']/div[@class='box-content']/table[@class='table table-striped']/tbody/tr[%d]/td`, i))
 		if value, ok := xpath.String(xmlRoot); ok {
 			switch i {
 			case 1:
@@ -128,30 +126,6 @@ func main() {
 				result.CRC32 = value
 			case 9:
 				result.SSDEEP = value
-			}
-		}
-	}
-
-	// Files, Registry Keys, Mutexes
-	for _, listType := range []string{"summary_keys", "summary_files", "summary_mutexes"} {
-		xpath = xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='summary']/div[@class='tabbable tabs']/div[@class='tab-content']/div[@id='%s']/div[@class='well mono']`, listType))
-		if listExtracted, ok := xpath.String(xmlRoot); ok {
-			asArray := strings.Split(listExtracted, "\n")
-
-			for _, asString := range asArray {
-				asString = strings.Trim(asString, " \t")
-				if len(asString) == 0 {
-					continue
-				}
-
-				switch listType {
-				case "summary_files":
-					result.Files = append(result.Files, asString)
-				case "summary_keys":
-					result.RegistryKeys = append(result.RegistryKeys, asString)
-				case "summary_mutexes":
-					result.Mutexes = append(result.Mutexes, asString)
-				}
 			}
 		}
 	}
@@ -184,7 +158,61 @@ func main() {
 		}
 	}
 
-	b, _ := json.MarshalIndent(result, "", "\t")
-	fmt.Println(string(b))
+	// Hosts
+	for i := 2; ; i++ {
+		xpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='hosts']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td`, i))
+		if ip, ok := xpath.String(xmlRoot); ok && len(ip) > 0 {
+			result.Hosts = append(result.Hosts, ip)
+		} else {
+			break
+		}
+	}
 
+	// Domains
+	for i := 2; ; i++ {
+		domainXpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='domains']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td[1]`, i))
+		domainString, ok := domainXpath.String(xmlRoot)
+		if !ok || len(domainString) == 0 {
+			break
+		}
+
+		ipXpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='domains']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td[2]`, i))
+		ipString, ok := ipXpath.String(xmlRoot)
+		if !ok || len(ipString) == 0 {
+			break
+		}
+
+		result.Domains = append(result.Domains, domain{IP: ipString, Domain: domainString})
+	}
+
+	// Files, Registry Keys, Mutexes
+	for _, listType := range []string{"summary_keys", "summary_files", "summary_mutexes"} {
+		xpath = xmlpath.MustCompile(fmt.Sprintf(`/html/body/div[@class='container-fluid']/div[@class='tabbable tabs-left']/div[@class='tab-content']/div[@id='overview']/section[@id='summary']/div[@class='tabbable tabs']/div[@class='tab-content']/div[@id='%s']/div[@class='well mono']`, listType))
+		if listExtracted, ok := xpath.String(xmlRoot); ok {
+			asArray := strings.Split(listExtracted, "\n")
+
+			for _, asString := range asArray {
+				asString = strings.Trim(asString, " \t")
+				if len(asString) == 0 {
+					continue
+				}
+
+				switch listType {
+				case "summary_files":
+					result.Files = append(result.Files, asString)
+				case "summary_keys":
+					result.RegistryKeys = append(result.RegistryKeys, asString)
+				case "summary_mutexes":
+					result.Mutexes = append(result.Mutexes, asString)
+				}
+			}
+		}
+	}
+
+	asJSON, err := json.MarshalIndent(result, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(asJSON))
 }
