@@ -222,6 +222,7 @@ func main() {
 
 	// VirusTotal
 	vtDetected, vtTotal := 0, 0
+	result.VirusTotal.Detections = make([]antivirus, 0)
 	for i := 2; ; i++ {
 		avNameXpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='static_antivirus']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td[1]`, i))
 		avName, ok := avNameXpath.String(xmlRoot)
@@ -246,53 +247,57 @@ func main() {
 	result.VirusTotal.Score = fmt.Sprintf("%d/%d", vtDetected, vtTotal)
 
 	// Dropped Files
-	for i := 1; ; i++ {
-		droppedFile := dropped{}
-		for j := 1; j <= 8; j++ {
-			xpath := xmlpath.MustCompile(fmt.Sprintf(`//*[@id="dropped"]/div[%d]/div/table/tbody/tr[%d]/td`, i, j))
-			if value, ok := xpath.String(xmlRoot); ok {
-				value = strings.Trim(value, " \t\n")
-				switch j {
-				case 1:
-					droppedFile.FileName = value
-				case 2:
-					droppedFile.FileSize = value
-				case 3:
-					droppedFile.FileType = value
-				case 4:
-					droppedFile.MD5 = value
-				case 5:
-					droppedFile.SHA1 = value
-				case 6:
-					droppedFile.SHA256 = value
-				case 7:
-					droppedFile.CRC32 = value
-				case 8:
-					droppedFile.SSDEEP = value
+	result.DroppedFiles = make([]dropped, 0)
+	xpath = xmlpath.MustCompile(`//div[@id='dropped']/div[@class='alert alert-info']`)
+	if _, ok := xpath.String(xmlRoot); !ok {
+		for i := 1; ; i++ {
+			droppedFile := dropped{}
+			for j := 1; j <= 8; j++ {
+				xpath := xmlpath.MustCompile(fmt.Sprintf(`//div[@id="dropped"]/div[%d]/div/table/tbody/tr[%d]/td`, i, j))
+				if value, ok := xpath.String(xmlRoot); ok {
+					value = strings.Trim(value, " \t\n")
+					switch j {
+					case 1:
+						droppedFile.FileName = value
+					case 2:
+						droppedFile.FileSize = value
+					case 3:
+						droppedFile.FileType = value
+					case 4:
+						droppedFile.MD5 = value
+					case 5:
+						droppedFile.SHA1 = value
+					case 6:
+						droppedFile.SHA256 = value
+					case 7:
+						droppedFile.CRC32 = value
+					case 8:
+						droppedFile.SSDEEP = value
+					}
 				}
 			}
-		}
 
-		if len(droppedFile.CRC32) == 0 {
-			break
-		}
-
-		droppedFile.YARA = make([]string, 0)
-		xpath := xmlpath.MustCompile(fmt.Sprintf(`//*[@id="dropped"]/div[%d]/div/table/tbody/tr[9]/td`, i))
-		if yarasExtracted, ok := xpath.String(xmlRoot); ok {
-			asArray := strings.Split(yarasExtracted, "\n")
-
-			for _, asString := range asArray {
-				asString = strings.Trim(asString, " \t")
-				if len(asString) == 0 || asString == "None matched" {
-					continue
-				}
-
-				droppedFile.YARA = append(droppedFile.YARA, asString)
+			if len(droppedFile.CRC32) == 0 {
+				break
 			}
-		}
 
-		result.DroppedFiles = append(result.DroppedFiles, droppedFile)
+			droppedFile.YARA = make([]string, 0)
+			xpath := xmlpath.MustCompile(fmt.Sprintf(`//*[@id="dropped"]/div[%d]/div/table/tbody/tr[9]/td`, i))
+			if yarasExtracted, ok := xpath.String(xmlRoot); ok {
+				asArray := strings.Split(yarasExtracted, "\n")
+
+				for _, asString := range asArray {
+					asString = strings.Trim(asString, " \t")
+					if len(asString) == 0 || asString == "None matched" {
+						continue
+					}
+
+					droppedFile.YARA = append(droppedFile.YARA, asString)
+				}
+			}
+
+			result.DroppedFiles = append(result.DroppedFiles, droppedFile)
+		}
 	}
 
 	asJSON, err := json.MarshalIndent(result, "", "\t")
