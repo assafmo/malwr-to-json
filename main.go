@@ -27,7 +27,7 @@ type report struct {
 	Hosts                                                                  []string
 	Domains                                                                []domain
 	Files, RegistryKeys, Mutexes                                           []string
-	VirusTotal                                                             []virustotal
+	VirusTotal                                                             virustotal
 	DroppedFiles                                                           []dropped
 }
 
@@ -37,7 +37,11 @@ type domain struct {
 
 type virustotal struct {
 	Score      string
-	Detections struct{ AntiVirus, Detection string }
+	Detections []antivirus
+}
+
+type antivirus struct {
+	AntiVirus, Detection string
 }
 
 type dropped struct {
@@ -214,6 +218,31 @@ func main() {
 			}
 		}
 	}
+
+	// VirusTotal
+	vtDetected, vtTotal := 0, 0
+	for i := 2; ; i++ {
+		avNameXpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='static_antivirus']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td[1]`, i))
+		avName, ok := avNameXpath.String(xmlRoot)
+		if !ok || len(avName) == 0 {
+			break
+		}
+
+		detectionXpath := xmlpath.MustCompile(fmt.Sprintf(`//section[@id='static_antivirus']/table[@class='table table-striped table-bordered']/tbody/tr[%d]/td[2]/span`, i))
+		detectionName, ok := detectionXpath.String(xmlRoot)
+		if !ok || len(detectionName) == 0 {
+			break
+		}
+
+		vtTotal++
+		if detectionName != "Clean" {
+			vtDetected++
+		}
+
+		av := antivirus{AntiVirus: avName, Detection: detectionName}
+		result.VirusTotal.Detections = append(result.VirusTotal.Detections, av)
+	}
+	result.VirusTotal.Score = fmt.Sprintf("%d/%d", vtDetected, vtTotal)
 
 	asJSON, err := json.MarshalIndent(result, "", "\t")
 	if err != nil {
