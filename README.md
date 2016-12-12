@@ -1,6 +1,6 @@
 # Usage Example
 ```bash
-go run main.go --id NzU2ZjgzYTI5ODUyNDViN2IyYTY1ZTE2N2VmNmVjNzU
+go run main.go --id NzU2ZjgzYTI5ODUyNDViN2IyYTY1ZTE2N2VmNmVjNzU --html true
 ```
 
 # Contribute
